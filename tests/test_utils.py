@@ -5,6 +5,7 @@ import tarfile
 import io
 
 import pytest
+from omegaconf import open_dict
 
 from zotero_arxiv_daily.utils import glob_match, send_email, extract_tex_code_from_tar, _bm25_pick
 from tests.canned_responses import make_stub_smtp
@@ -131,6 +132,31 @@ def test_send_email_starttls_success(config, monkeypatch):
     assert recipients == ["test@example.com"]
     # Body is a full MIME message (base64-encoded). Check the raw MIME string.
     assert "text/html" in body
+
+
+def test_send_email_port_465_uses_ssl_first(config, monkeypatch):
+    sent = []
+    calls = []
+    StubSSL = make_stub_smtp(sent)
+
+    class StubSMTPShouldNotBeFirst:
+        def __init__(self, *a, **kw):
+            calls.append("smtp")
+            raise AssertionError("SMTP should not be tried before SMTP_SSL on port 465")
+
+    class StubSMTP_SSL(StubSSL):
+        def __init__(self, *a, **kw):
+            calls.append("ssl")
+            super().__init__(*a, **kw)
+
+    with open_dict(config):
+        config.email.smtp_port = 465
+
+    monkeypatch.setattr(smtplib, "SMTP", StubSMTPShouldNotBeFirst)
+    monkeypatch.setattr(smtplib, "SMTP_SSL", StubSMTP_SSL)
+    send_email(config, "<html>ssl</html>")
+    assert calls == ["ssl"]
+    assert len(sent) == 1
 
 
 def test_send_email_falls_back_to_ssl(config, monkeypatch):

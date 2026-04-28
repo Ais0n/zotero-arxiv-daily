@@ -152,19 +152,47 @@ def send_email(config:DictConfig, html:str):
     msg = MIMEText(html, 'html', 'utf-8')
     msg['From'] = _format_addr('Github Action <%s>' % sender)
     msg['To'] = _format_addr('You <%s>' % receiver)
-    today = datetime.datetime.now().strftime('%Y/%m/%d')
-    msg['Subject'] = Header(f'Daily arXiv {today}', 'utf-8').encode()
+    report_date = config.source.arxiv.get("date") if "arxiv" in config.source else None
+    subject_date = str(report_date).replace("-", "/") if report_date else datetime.datetime.now().strftime('%Y/%m/%d')
+    msg['Subject'] = Header(f'Daily arXiv {subject_date}', 'utf-8').encode()
 
-    try:
-        server = smtplib.SMTP(smtp_server, smtp_port)
-        server.starttls()
-    except Exception as e:
-        logger.debug(f"Failed to use TLS. {e}\nTry to use SSL.")
+    def _connect_starttls():
+        smtp = smtplib.SMTP(smtp_server, smtp_port)
         try:
-            server = smtplib.SMTP_SSL(smtp_server, smtp_port)
+            smtp.starttls()
+        except Exception:
+            try:
+                smtp.quit()
+            except Exception:
+                pass
+            raise
+        return smtp
+
+    def _connect_ssl():
+        return smtplib.SMTP_SSL(smtp_server, smtp_port)
+
+    def _connect_plain():
+        return smtplib.SMTP(smtp_server, smtp_port)
+
+    smtp_port_int = int(smtp_port)
+    if smtp_port_int == 465:
+        attempts = [("SSL", _connect_ssl), ("TLS", _connect_starttls), ("plain text", _connect_plain)]
+    else:
+        attempts = [("TLS", _connect_starttls), ("SSL", _connect_ssl), ("plain text", _connect_plain)]
+
+    server = None
+    errors = []
+    for name, connect in attempts:
+        try:
+            logger.debug(f"Connecting to SMTP server with {name}.")
+            server = connect()
+            break
         except Exception as e:
-            logger.debug(f"Failed to use SSL. {e}\nTry to use plain text.")
-            server = smtplib.SMTP(smtp_server, smtp_port)
+            errors.append(f"{name}: {e}")
+            logger.debug(f"Failed to use {name}. {e}")
+
+    if server is None:
+        raise ConnectionError(f"Failed to connect to SMTP server {smtp_server}:{smtp_port}. " + " | ".join(errors))
 
     server.login(sender, password)
     server.sendmail(sender, [receiver], msg.as_string())

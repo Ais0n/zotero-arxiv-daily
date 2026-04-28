@@ -39,6 +39,20 @@ class Executor:
         }
         self.reranker = get_reranker_cls(config.executor.reranker)(config)
         self.openai_client = OpenAI(api_key=config.llm.api.key, base_url=config.llm.api.base_url)
+
+    def send_test_email(self):
+        logger.info("Sending test email...")
+        html = """
+        <html>
+        <body>
+            <h2>Zotero arXiv Daily test email</h2>
+            <p>If you received this message, your SMTP settings are working.</p>
+        </body>
+        </html>
+        """
+        send_email(self.config, html)
+        logger.info("Test email sent successfully")
+
     def fetch_zotero_corpus(self) -> list[CorpusPaper]:
         logger.info("Fetching zotero corpus")
         zot = zotero.Zotero(self.config.zotero.user_id, 'user', self.config.zotero.api_key)
@@ -91,6 +105,10 @@ class Executor:
 
     
     def run(self):
+        if self.config.executor.get("test_email", False):
+            self.send_test_email()
+            return
+
         corpus = self.fetch_zotero_corpus()
         corpus = self.filter_corpus(corpus)
         if len(corpus) == 0:

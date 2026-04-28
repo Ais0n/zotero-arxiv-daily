@@ -44,7 +44,7 @@ def test_render_email_affiliation_truncation():
 def test_render_email_no_affiliations():
     paper = make_sample_paper(affiliations=None, score=7.0, tldr="ok")
     html = render_email([paper])
-    assert "Unknown Affiliation" in html
+    assert "Affiliation not found" in html
 
 
 def test_get_stars_low_score():
@@ -71,6 +71,21 @@ def test_get_block_html_contains_all_fields():
     assert "Summary" in html
     assert "http://pdf.url" in html
     assert "MIT" in html
+
+
+def test_render_email_formats_markdown_summary_for_html():
+    paper = make_sample_paper(
+        score=7.0,
+        affiliations=["MIT"],
+        tldr="### 方法\n**核心贡献**：提出新方法。\n- 数据构造\n- 模型训练\n1. 实验验证",
+    )
+    html = render_email([paper])
+    assert "###" not in html
+    assert "**" not in html
+    assert "<strong>核心贡献</strong>" in html
+    assert "<ul" in html
+    assert "<ol" in html
+    assert "<li" in html
 
 
 def test_get_empty_html():

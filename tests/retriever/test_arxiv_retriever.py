@@ -63,6 +63,25 @@ def test_arxiv_retriever(config, mock_feedparser, monkeypatch):
     assert set(p.title for p in papers) == set(e.title for e in new_entries)
 
 
+def test_arxiv_retriever_by_date_filters_primary_category(config):
+    captured = {}
+
+    class FakeClient:
+        def results(self, search):
+            captured["search"] = search
+            return iter([
+                SimpleNamespace(primary_category="cs.AI", title="Primary match"),
+                SimpleNamespace(primary_category="math.PR", title="Cross list"),
+            ])
+
+    retriever = ArxivRetriever(config)
+    papers = retriever._retrieve_raw_papers_by_date(FakeClient(), "2026-04-24", include_cross_list=False)
+
+    assert [p.title for p in papers] == ["Primary match"]
+    assert "submittedDate:[20260424000000 TO 20260424235959]" in captured["search"].query
+    assert "cat:cs.AI" in captured["search"].query
+
+
 def test_run_with_hard_timeout_returns_value():
     result = _run_with_hard_timeout(
         _sleep_and_return, ("done", 0.01), timeout=1, operation="test op", paper_title="paper"

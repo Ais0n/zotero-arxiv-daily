@@ -10,9 +10,9 @@ from zotero_arxiv_daily.protocol import CorpusPaper, Paper
 # OpenAI client stub
 # ---------------------------------------------------------------------------
 
-_AFFILIATION_MARKER = "You are an assistant who perfectly extracts affiliations"
+_AFFILIATION_MARKER = "You extract author affiliations"
 _AFFILIATION_RESPONSE = '["TsingHua University","Peking University"]'
-_TLDR_RESPONSE = "Hello! How can I assist you today?"
+_TLDR_RESPONSE = "这是一段中文论文总结。"
 
 
 def _make_chat_response(content: str) -> SimpleNamespace:

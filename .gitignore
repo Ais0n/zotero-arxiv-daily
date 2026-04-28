@@ -5,6 +5,7 @@ build/
 dist/
 wheels/
 .vscode/
+.codex/
 *.egg-info
 .env
 

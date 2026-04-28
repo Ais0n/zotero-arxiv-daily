@@ -7,6 +7,8 @@ We test the inner logic by calling main's body with a composed config.
 
 import pytest
 from hydra.core.global_hydra import GlobalHydra
+import subprocess
+import sys
 
 
 @pytest.fixture(autouse=True)
@@ -59,3 +61,14 @@ def test_main_debug_logging(config, monkeypatch):
 
     main_mod.main.__wrapped__(config)
     # If we get here without error, the debug path executed successfully
+
+
+def test_root_main_resolves_config():
+    result = subprocess.run(
+        [sys.executable, "main.py", "--help"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert "deepseek-v4-flash" in result.stdout
+    assert "source:" in result.stdout

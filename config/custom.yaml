@@ -12,14 +12,16 @@ email:
 
 llm:
   api:
-    key: ${oc.env:OPENAI_API_KEY}
-    base_url: ${oc.env:OPENAI_API_BASE}
+    key: ${oc.env:DEEPSEEK_API_KEY}
+    base_url: ${oc.env:DEEPSEEK_API_BASE}
   generation_kwargs:
-    model: gpt-4o-mini
+    model: ${oc.env:MODEL,deepseek-v4-flash}
+  language: Chinese
 
 source:
   arxiv:
     category: ["cs.AI","cs.CV","cs.LG","cs.CL"]
+    date: null
 
 executor:
   debug: ${oc.env:DEBUG,null}

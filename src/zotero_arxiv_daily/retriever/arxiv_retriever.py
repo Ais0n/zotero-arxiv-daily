@@ -12,6 +12,7 @@ from queue import Empty
 from typing import Any, Callable, TypeVar
 from loguru import logger
 import requests
+from datetime import datetime
 
 T = TypeVar("T")
 
@@ -114,8 +115,11 @@ class ArxivRetriever(BaseRetriever):
 
     def _retrieve_raw_papers(self) -> list[ArxivResult]:
         client = arxiv.Client(num_retries=10, delay_seconds=10)
-        query = '+'.join(self.config.source.arxiv.category)
         include_cross_list = self.config.source.arxiv.get("include_cross_list", False)
+        if date := self.config.source.arxiv.get("date"):
+            return self._retrieve_raw_papers_by_date(client, str(date), include_cross_list)
+
+        query = '+'.join(self.config.source.arxiv.category)
         # Get the latest paper from arxiv rss feed
         feed = feedparser.parse(f"https://rss.arxiv.org/atom/{query}")
         if 'Feed error for query' in feed.feed.title:
@@ -139,6 +143,41 @@ class ArxivRetriever(BaseRetriever):
             raw_papers.extend(batch)
         bar.close()
 
+        return raw_papers
+
+    def _retrieve_raw_papers_by_date(
+        self,
+        client: arxiv.Client,
+        date: str,
+        include_cross_list: bool,
+    ) -> list[ArxivResult]:
+        try:
+            target_date = datetime.strptime(date, "%Y-%m-%d").date()
+        except ValueError as exc:
+            raise ValueError("source.arxiv.date must use YYYY-MM-DD format.") from exc
+
+        categories = list(self.config.source.arxiv.category)
+        category_query = " OR ".join(f"cat:{category}" for category in categories)
+        yyyymmdd = target_date.strftime("%Y%m%d")
+        date_query = f"submittedDate:[{yyyymmdd}000000 TO {yyyymmdd}235959]"
+        query = f"({category_query}) AND {date_query}"
+        max_results = self.config.source.arxiv.get("max_results", 500)
+        logger.info(f"Retrieving arXiv papers submitted on {target_date.isoformat()} with query: {query}")
+
+        search = arxiv.Search(
+            query=query,
+            max_results=max_results,
+            sort_by=arxiv.SortCriterion.SubmittedDate,
+            sort_order=arxiv.SortOrder.Descending,
+        )
+        raw_papers = list(client.results(search))
+        if not include_cross_list:
+            raw_papers = [
+                paper for paper in raw_papers
+                if getattr(paper, "primary_category", None) in categories
+            ]
+        if self.config.executor.debug:
+            raw_papers = raw_papers[:10]
         return raw_papers
 
     def convert_to_paper(self, raw_paper: ArxivResult) -> Paper:

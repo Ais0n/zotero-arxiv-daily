@@ -209,6 +209,30 @@ def test_run_end_to_end(config, monkeypatch):
     assert "text/html" in email_body
 
 
+def test_run_test_email_exits_before_fetching_zotero(config, monkeypatch):
+    import smtplib
+
+    from omegaconf import open_dict
+
+    from tests.canned_responses import make_stub_smtp
+
+    with open_dict(config):
+        config.executor.test_email = True
+
+    def fail_fetch(self):
+        raise AssertionError("test_email mode should not fetch Zotero corpus")
+
+    sent = []
+    monkeypatch.setattr(smtplib, "SMTP", make_stub_smtp(sent))
+    monkeypatch.setattr(Executor, "fetch_zotero_corpus", fail_fetch)
+
+    executor = Executor(config)
+    executor.run()
+
+    assert len(sent) == 1
+    assert "text/html" in sent[0][2]
+
+
 def test_run_no_papers_send_empty_false(config, monkeypatch):
     """When no papers are found and send_empty=false, no email is sent."""
     import smtplib
